@@ -16,6 +16,7 @@ let package = Package(
     ],
     products: [
         .library(name: "ResourceFile", type: .static, targets: ["ResourceFile"]),
+        .library(name: "TGAFile", type: .static, targets: ["TGAFile"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -32,6 +33,19 @@ let package = Package(
         .testTarget(
             name: "ResourceFileTests",
             dependencies: ["ResourceFile"]
+        ),
+
+        // MARK: - TGAFile (standalone, tested TGA image decoder)
+
+        .target(
+            name: "TGAFile",
+            dependencies: [
+                .product(name: "BinaryParsing", package: "swift-binary-parsing")
+            ]
+        ),
+        .testTarget(
+            name: "TGAFileTests",
+            dependencies: ["TGAFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
