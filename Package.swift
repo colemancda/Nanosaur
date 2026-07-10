@@ -19,6 +19,7 @@ let package = Package(
         .library(name: "TGAFile", type: .static, targets: ["TGAFile"]),
         .library(name: "SkeletonFile", type: .static, targets: ["SkeletonFile"]),
         .library(name: "TerrainFile", type: .static, targets: ["TerrainFile"]),
+        .library(name: "QD3DFile", type: .static, targets: ["QD3DFile"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -75,6 +76,16 @@ let package = Package(
         .testTarget(
             name: "TerrainFileTests",
             dependencies: ["TerrainFile"]
+        ),
+
+        // MARK: - QD3DFile (standalone 3DMF model parser)
+
+        .target(
+            name: "QD3DFile"
+        ),
+        .testTarget(
+            name: "QD3DFileTests",
+            dependencies: ["QD3DFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
