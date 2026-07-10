@@ -17,6 +17,7 @@ let package = Package(
     products: [
         .library(name: "ResourceFile", type: .static, targets: ["ResourceFile"]),
         .library(name: "TGAFile", type: .static, targets: ["TGAFile"]),
+        .library(name: "SkeletonFile", type: .static, targets: ["SkeletonFile"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -46,6 +47,20 @@ let package = Package(
         .testTarget(
             name: "TGAFileTests",
             dependencies: ["TGAFile"]
+        ),
+
+        // MARK: - SkeletonFile (skeleton + animation decoder built on ResourceFile)
+
+        .target(
+            name: "SkeletonFile",
+            dependencies: [
+                "ResourceFile",
+                .product(name: "BinaryParsing", package: "swift-binary-parsing"),
+            ]
+        ),
+        .testTarget(
+            name: "SkeletonFileTests",
+            dependencies: ["SkeletonFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
