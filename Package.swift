@@ -18,6 +18,7 @@ let package = Package(
         .library(name: "ResourceFile", type: .static, targets: ["ResourceFile"]),
         .library(name: "TGAFile", type: .static, targets: ["TGAFile"]),
         .library(name: "SkeletonFile", type: .static, targets: ["SkeletonFile"]),
+        .library(name: "TerrainFile", type: .static, targets: ["TerrainFile"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -61,6 +62,19 @@ let package = Package(
         .testTarget(
             name: "SkeletonFileTests",
             dependencies: ["SkeletonFile"]
+        ),
+
+        // MARK: - TerrainFile (standalone, tested .ter/.trt terrain parsers)
+
+        .target(
+            name: "TerrainFile",
+            dependencies: [
+                .product(name: "BinaryParsing", package: "swift-binary-parsing")
+            ]
+        ),
+        .testTarget(
+            name: "TerrainFileTests",
+            dependencies: ["TerrainFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
