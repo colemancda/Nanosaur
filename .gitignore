@@ -10,6 +10,9 @@ cache/
 /dist/
 /out/
 
+# Swift Package Manager
+/.build/
+
 # IDEs
 .vs/
 /.vscode
