@@ -2,7 +2,9 @@
 // loop. (The original entry point is main() in src/Boot.cpp.)
 import Foundation
 import NanosaurApp
+import NanosaurSkeleton
 import QD3DFile
+import SkeletonFile
 
 /// Loads a .3dmf model's meshes as renderables, if the file exists. While the
 /// full engine is being ported the executable acts as a model viewer: it shows
@@ -30,9 +32,35 @@ let env = ProcessInfo.processInfo.environment
 let maxFrames = env["NANOSAUR_MAX_FRAMES"].flatMap { Int($0) }
 let screenshotPath = env["NANOSAUR_SCREENSHOT"]
 
+/// Loads an animated skeleton (creature + its .skeleton file) as the scene.
+/// NANOSAUR_SKELETON=Name picks the creature; NANOSAUR_ANIM=N picks the anim.
+private func loadDemoSkeleton() -> (instance: SkeletonInstance, render: RenderableModel)? {
+    let env = ProcessInfo.processInfo.environment
+    let name = env["NANOSAUR_SKELETON"] ?? "Rex"
+    let animNum = env["NANOSAUR_ANIM"].flatMap { Int($0) } ?? 1
+
+    let fm = FileManager.default
+    let modelPath = "Data/Skeletons/\(name).3dmf"
+    let skelPath = "Data/Skeletons/\(name).skeleton.rsrc"
+    guard let md = fm.contents(atPath: modelPath),
+          let meshFile = try? MetaFile3D(parsing3DMF: md),
+          let sd = fm.contents(atPath: skelPath),
+          let skelFile = try? SkeletonFile(parsingResourceFork: sd)
+    else { return nil }
+
+    let model = SkeletonModel(meshFile: meshFile, skeletonFile: skelFile)
+    let instance = SkeletonInstance(model: model, animNum: animNum)
+    return (instance, RenderableModel(meshFile))
+}
+
 do {
     let window = try GameWindow()
-    window.model = loadDemoModel()
+    // Prefer an animated skeleton; fall back to a static model.
+    if let skeleton = loadDemoSkeleton() {
+        window.skeleton = skeleton
+    } else {
+        window.model = loadDemoModel()
+    }
     window.run(maxFrames: maxFrames, screenshotPath: screenshotPath)
 } catch {
     FileHandle.standardError.write(Data("Nanosaur failed to start: \(error)\n".utf8))
