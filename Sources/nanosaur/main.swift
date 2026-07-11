@@ -76,6 +76,63 @@ private func sceneryModel(type: UInt16, parm: [UInt8]) -> (object: Int, scale: F
     }
 }
 
+// Enemy item type -> (skeleton file name, walk animation #, scale, y lift).
+private func enemyCreature(type: UInt16) -> (name: String, anim: Int, scale: Float, lift: Float)? {
+    switch type {
+    case 2: return ("Tricer", 0, 2.2, 0)   // Triceratops (walk)
+    case 3: return ("Rex", 1, 1.2, 0)      // T-Rex (walk)
+    case 7: return ("Ptera", 0, 1.0, 500)  // Pteranodon (fly, lifted off the ground)
+    case 8: return ("Stego", 2, 1.4, 0)    // Stegosaurus (walk)
+    case 16: return ("Diloph", 2, 0.8, 0)  // Dilophosaurus / spitter (walk)
+    default: return nil
+    }
+}
+
+/// Populates the world with animated enemies nearest the camera anchor (capped
+/// for performance), each a live skeleton instance placed on the terrain.
+private func loadEnemies(_ window: GameWindow, map: TerrainMap, geo: TerrainGeometry,
+                         anchorX: Float, anchorZ: Float, cap: Int = 45) {
+    let map2Unit: Float = 140.0 / 32.0
+    // Collect enemy items sorted by distance to the anchor.
+    var candidates: [(item: TerrainItem, x: Float, z: Float, dist: Float)] = []
+    for item in map.items where enemyCreature(type: item.type) != nil {
+        let x = Float(item.x) * map2Unit, z = Float(item.y) * map2Unit
+        let dx = x - anchorX, dz = z - anchorZ
+        candidates.append((item, x, z, dx * dx + dz * dz))
+    }
+    candidates.sort { $0.dist < $1.dist }
+
+    var cache: [String: SkeletonModel] = [:]
+    let fm = FileManager.default
+    for c in candidates.prefix(cap) {
+        guard let creature = enemyCreature(type: c.item.type) else { continue }
+        let model: SkeletonModel
+        if let cached = cache[creature.name] {
+            model = cached
+        } else {
+            guard let md = fm.contents(atPath: "Data/Skeletons/\(creature.name).3dmf"),
+                  let meshFile = try? MetaFile3D(parsing3DMF: md),
+                  let sd = fm.contents(atPath: "Data/Skeletons/\(creature.name).skeleton.rsrc"),
+                  let skelFile = try? SkeletonFile(parsingResourceFork: sd)
+            else { continue }
+            model = SkeletonModel(meshFile: meshFile, skeletonFile: skelFile)
+            cache[creature.name] = model
+        }
+
+        // Each enemy needs its own render meshes (its own deformed geometry).
+        guard let md = fm.contents(atPath: "Data/Skeletons/\(creature.name).3dmf"),
+              let meshFile = try? MetaFile3D(parsing3DMF: md) else { continue }
+        let instance = SkeletonInstance(model: model, animNum: creature.anim)
+        let render = RenderableModel(meshFile)
+        let y = geo.heightAtWorld(c.x, c.z) + creature.lift
+        let yaw = Float(c.item.parm[0]) * (.pi / 4) // aim 0..7
+        let base = Matrix4x4.scale(creature.scale, creature.scale, creature.scale)
+            .multiplied(by: Matrix4x4.rotationY(yaw))
+            .multiplied(by: Matrix4x4.translate(c.x, y, c.z))
+        window.enemies.append(AnimatedEnemy(instance: instance, render: render, baseTransform: base))
+    }
+}
+
 /// Loads Level 1's terrain (heightmap mesh + tileset atlas) plus its scenery.
 private func loadDemoTerrain(_ window: GameWindow) -> Bool {
     let fm = FileManager.default
@@ -93,11 +150,11 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
     // Populate the world with scenery from the terrain item list.
     let map2Unit: Float = 140.0 / 32.0 // MAP2UNIT_VALUE
 
-    // Anchor the fly-over camera on the densest scenery cluster (so the
-    // populated world is actually in view), bucketing items into 3000-unit cells.
+    // Anchor the fly-over camera on the densest enemy cluster (a herd of
+    // dinosaurs), bucketing items into 3000-unit cells.
     var cellCounts: [Int64: Int] = [:]
-    let sceneryTypes: Set<UInt16> = [5, 6, 10, 11, 12, 13, 15, 19]
-    for item in map.items where sceneryTypes.contains(item.type) {
+    let anchorTypes: Set<UInt16> = [2, 3, 7, 8, 16] // enemy types
+    for item in map.items where anchorTypes.contains(item.type) {
         let cx = Int64(Float(item.x) * map2Unit / 3000)
         let cz = Int64(Float(item.y) * map2Unit / 3000)
         cellCounts[cx << 32 | (cz & 0xFFFF_FFFF), default: 0] += 1
@@ -108,6 +165,9 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
         anchorZ = (Float(Int32(truncatingIfNeeded: best)) + 0.5) * 3000
     }
     window.terrain = (mesh, atlas, anchorX, anchorZ, geo.heightAtWorld(anchorX, anchorZ))
+
+    // Roaming animated enemies near the camera.
+    loadEnemies(window, map: map, geo: geo, anchorX: anchorX, anchorZ: anchorZ)
     if let modelData = fm.contents(atPath: "Data/Models/Level1_Models.3dmf"),
        let modelFile = try? MetaFile3D(parsing3DMF: modelData) {
         let model = RenderableModel(modelFile)
