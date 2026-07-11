@@ -22,6 +22,7 @@ let package = Package(
         .library(name: "QD3DFile", type: .static, targets: ["QD3DFile"]),
         .library(name: "QD3DMath", type: .static, targets: ["QD3DMath"]),
         .library(name: "NanosaurPlatform", type: .static, targets: ["NanosaurPlatform"]),
+        .library(name: "NanosaurEngine", type: .static, targets: ["NanosaurEngine"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -121,6 +122,17 @@ let package = Package(
         .testTarget(
             name: "NanosaurPlatformTests",
             dependencies: ["NanosaurPlatform"]
+        ),
+
+        // MARK: - NanosaurEngine (ObjNode object system + game loop core)
+
+        .target(
+            name: "NanosaurEngine",
+            dependencies: ["QD3DMath"]
+        ),
+        .testTarget(
+            name: "NanosaurEngineTests",
+            dependencies: ["NanosaurEngine"]
         ),
     ],
     cxxLanguageStandard: .cxx20
