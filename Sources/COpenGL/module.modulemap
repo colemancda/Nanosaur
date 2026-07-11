@@ -1,0 +1,6 @@
+// System-library module map exposing the OpenGL C API to Swift. Linkage
+// declaration only (see CSDL3/module.modulemap).
+module COpenGL [system] {
+    header "shim.h"
+    export *
+}
