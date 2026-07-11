@@ -196,8 +196,12 @@ public final class RenderableMesh {
 public final class RenderableModel {
     public let textures: [Texture2D]
     public let meshes: [RenderableMesh]
+    /// Top-level object groups (each is a list of indices into `meshes`), so a
+    /// single loaded file can be drawn as separate objects (trees, rocks, ...).
+    public let objects: [[Int]]
 
     public init(_ file: MetaFile3D) {
+        objects = file.topLevelGroups
         var texObjects: [Texture2D] = []
         var names: [GLuint] = [] // aligned to file.textures
         for shader in file.textures {
