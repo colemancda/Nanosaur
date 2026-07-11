@@ -35,6 +35,20 @@ public final class TerrainGeometry {
     public let startZ: Float
     public let startHeight: Float
 
+    // Height grid (retained so scenery can be placed on the surface).
+    private let heightGrid: [Float]
+    private let gridWidth: Int
+    private let gridDepth: Int
+
+    /// Terrain height at a world (x, z), by nearest grid corner (the "quick"
+    /// lookup the game uses for item placement).
+    public func heightAtWorld(_ x: Float, _ z: Float) -> Float {
+        let col = Int((x / polygonSize).rounded(.down))
+        let row = Int((z / polygonSize).rounded(.down))
+        guard row >= 0, row < gridDepth, col >= 0, col < gridWidth else { return 0 }
+        return heightGrid[row * gridWidth + col]
+    }
+
     public init(map: TerrainMap, tileset: TerrainTileset) {
         let width = map.tileWidth
         let depth = map.tileDepth
@@ -155,5 +169,9 @@ public final class TerrainGeometry {
         startX = sx
         startZ = sz
         startHeight = heightAt(Int(sz / polygonSize), Int(sx / polygonSize))
+
+        heightGrid = hgrid
+        gridWidth = gw
+        gridDepth = gd
     }
 }
