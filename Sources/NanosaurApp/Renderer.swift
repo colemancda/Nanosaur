@@ -11,9 +11,14 @@ import QD3DMath
 public final class Texture2D {
     public let name: GLuint
 
-    public init?(_ pixmap: QD3DPixmap) {
+    public convenience init?(_ pixmap: QD3DPixmap) {
         guard pixmap.width > 0, pixmap.height > 0 else { return nil }
-        let rgba = Texture2D.toRGBA(pixmap)
+        self.init(rgba: Texture2D.toRGBA(pixmap), width: pixmap.width, height: pixmap.height)
+    }
+
+    /// Uploads raw RGBA pixels as a GL texture (used by the terrain atlas).
+    public init?(rgba: [UInt8], width: Int, height: Int) {
+        guard width > 0, height > 0 else { return nil }
 
         var n: GLuint = 0
         glGenTextures(1, &n)
@@ -26,7 +31,7 @@ public final class Texture2D {
         glPixelStorei(GLenum(GL_UNPACK_ALIGNMENT), 1)
         rgba.withUnsafeBytes { buf in
             glTexImage2D(GLenum(GL_TEXTURE_2D), 0, GLint(GL_RGBA),
-                         GLsizei(pixmap.width), GLsizei(pixmap.height), 0,
+                         GLsizei(width), GLsizei(height), 0,
                          GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), buf.baseAddress)
         }
         name = n
@@ -121,6 +126,39 @@ public final class RenderableMesh {
         for (i, t) in mesh.triangles.enumerated() {
             indices[i * 3 + 0] = t.v0; indices[i * 3 + 1] = t.v1; indices[i * 3 + 2] = t.v2
         }
+    }
+
+    /// Build directly from flat GL-ready arrays (used by the terrain builder).
+    public init(points p: [Float], normals nn: [Float]?, uvs uu: [Float]?,
+                indices ii: [UInt32], textureName: GLuint = 0,
+                diffuse: (Float, Float, Float, Float) = (1, 1, 1, 1)) {
+        self.textureName = textureName
+        self.diffuse = diffuse
+
+        var lo = Point3D(x: .greatestFiniteMagnitude, y: .greatestFiniteMagnitude, z: .greatestFiniteMagnitude)
+        var hi = Point3D(x: -.greatestFiniteMagnitude, y: -.greatestFiniteMagnitude, z: -.greatestFiniteMagnitude)
+        var i = 0
+        while i + 2 < p.count {
+            lo.x = min(lo.x, p[i]); hi.x = max(hi.x, p[i])
+            lo.y = min(lo.y, p[i + 1]); hi.y = max(hi.y, p[i + 1])
+            lo.z = min(lo.z, p[i + 2]); hi.z = max(hi.z, p[i + 2])
+            i += 3
+        }
+        boundsMin = lo
+        boundsMax = hi
+
+        points = .allocate(capacity: p.count)
+        _ = points.initialize(from: p)
+        if let nn {
+            let buf = UnsafeMutableBufferPointer<Float>.allocate(capacity: nn.count)
+            _ = buf.initialize(from: nn); normals = buf
+        } else { normals = nil }
+        if let uu {
+            let buf = UnsafeMutableBufferPointer<Float>.allocate(capacity: uu.count)
+            _ = buf.initialize(from: uu); uvs = buf
+        } else { uvs = nil }
+        indices = .allocate(capacity: ii.count)
+        _ = indices.initialize(from: ii)
     }
 
     deinit {
