@@ -23,6 +23,7 @@ let package = Package(
         .library(name: "QD3DMath", type: .static, targets: ["QD3DMath"]),
         .library(name: "NanosaurPlatform", type: .static, targets: ["NanosaurPlatform"]),
         .library(name: "NanosaurEngine", type: .static, targets: ["NanosaurEngine"]),
+        .library(name: "NanosaurSkeleton", type: .static, targets: ["NanosaurSkeleton"]),
         .library(name: "NanosaurApp", type: .static, targets: ["NanosaurApp"]),
         .executable(name: "nanosaur", targets: ["nanosaur"]),
     ],
@@ -139,13 +140,24 @@ let package = Package(
 
         // MARK: - NanosaurApp (SDL window + GL context + main loop) and executable
 
+        // MARK: - NanosaurSkeleton (skeletal animation + skinning)
+
+        .target(
+            name: "NanosaurSkeleton",
+            dependencies: ["QD3DFile", "SkeletonFile", "QD3DMath"]
+        ),
+        .testTarget(
+            name: "NanosaurSkeletonTests",
+            dependencies: ["NanosaurSkeleton", "QD3DFile", "SkeletonFile"]
+        ),
+
         .target(
             name: "NanosaurApp",
-            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "QD3DMath", "QD3DFile"]
+            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "NanosaurSkeleton", "QD3DMath", "QD3DFile"]
         ),
         .executableTarget(
             name: "nanosaur",
-            dependencies: ["NanosaurApp", "QD3DFile"]
+            dependencies: ["NanosaurApp", "NanosaurSkeleton", "QD3DFile", "SkeletonFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
