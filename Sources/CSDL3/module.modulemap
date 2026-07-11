@@ -1,0 +1,7 @@
+// System-library module map exposing SDL3 to Swift. This is a linkage
+// declaration, not application C code - the game logic is all Swift; SDL3 is
+// the external C library it links against (installed as libsdl3-dev / sdl3).
+module CSDL3 [system] {
+    header "shim.h"
+    export *
+}
