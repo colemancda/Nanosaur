@@ -169,7 +169,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "nanosaur",
-            dependencies: ["NanosaurApp", "NanosaurSkeleton", "NanosaurTerrain", "QD3DFile", "SkeletonFile", "TerrainFile"]
+            dependencies: ["NanosaurApp", "NanosaurSkeleton", "NanosaurTerrain", "QD3DFile", "QD3DMath", "SkeletonFile", "TerrainFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
