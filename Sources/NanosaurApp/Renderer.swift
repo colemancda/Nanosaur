@@ -244,6 +244,54 @@ public struct Renderer {
         glLightfv(GLenum(GL_LIGHT0), GLenum(GL_AMBIENT), &ambient)
     }
 
+    // MARK: 2D overlay (HUD / screens)
+
+    /// Enter a 2D drawing mode: an orthographic 640x480 virtual screen with the
+    /// origin at the top-left (matching the game's DrawSpriteFrameToScreen
+    /// coordinate space), lighting/depth off, alpha blending on.
+    public func begin2D(width: Float = 640, height: Float = 480) {
+        glDisable(GLenum(GL_LIGHTING))
+        glDisable(GLenum(GL_DEPTH_TEST))
+        glEnable(GLenum(GL_BLEND))
+        glBlendFunc(GLenum(GL_SRC_ALPHA), GLenum(GL_ONE_MINUS_SRC_ALPHA))
+        glMatrixMode(GLenum(GL_PROJECTION))
+        glLoadIdentity()
+        glOrtho(0, GLdouble(width), GLdouble(height), 0, -1, 1)
+        glMatrixMode(GLenum(GL_MODELVIEW))
+        glLoadIdentity()
+    }
+
+    /// Draw a textured sprite with its top-left at (x, y).
+    public func draw2D(_ texture: GLuint, x: Float, y: Float, width: Float, height: Float) {
+        glEnable(GLenum(GL_TEXTURE_2D))
+        glBindTexture(GLenum(GL_TEXTURE_2D), texture)
+        glColor4f(1, 1, 1, 1)
+        glBegin(GLenum(GL_QUADS))
+        glTexCoord2f(0, 0); glVertex2f(x, y)
+        glTexCoord2f(1, 0); glVertex2f(x + width, y)
+        glTexCoord2f(1, 1); glVertex2f(x + width, y + height)
+        glTexCoord2f(0, 1); glVertex2f(x, y + height)
+        glEnd()
+    }
+
+    /// Draw a solid colored rectangle (the health meter).
+    public func fillRect2D(x: Float, y: Float, width: Float, height: Float,
+                           r: Float, g: Float, b: Float, a: Float = 1) {
+        glDisable(GLenum(GL_TEXTURE_2D))
+        glColor4f(r, g, b, a)
+        glBegin(GLenum(GL_QUADS))
+        glVertex2f(x, y); glVertex2f(x + width, y)
+        glVertex2f(x + width, y + height); glVertex2f(x, y + height)
+        glEnd()
+    }
+
+    /// Leave 2D mode and restore 3D render state.
+    public func end2D() {
+        glDisable(GLenum(GL_BLEND))
+        glEnable(GLenum(GL_DEPTH_TEST))
+        glEnable(GLenum(GL_LIGHTING))
+    }
+
     public func draw(_ mesh: RenderableMesh, transform: Matrix4x4) {
         glPushMatrix()
         glMultMatrixf(transform.glArray)
