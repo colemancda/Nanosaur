@@ -52,6 +52,11 @@ public final class GameWindow {
     /// Scenery placed on the terrain: a shared model file plus per-item
     /// (object-index, world-transform) placements drawn over the landscape.
     public var scenery: (model: RenderableModel, placements: [(object: Int, transform: Matrix4x4)])?
+
+    /// Animated enemies roaming the world: each has its own skeleton instance,
+    /// deformable render meshes, and a world placement transform.
+    public var enemies: [AnimatedEnemy] = []
+
     private var flyOffset: Float = 0
 
     private let renderer = Renderer()
@@ -135,15 +140,32 @@ public final class GameWindow {
 
         // Terrain: fly the camera forward over the landscape.
         if let terrain {
-            flyOffset += clock.framesPerSecondFrac * 500 // fly forward
             let aspect = Float(viewportWidth) / Float(viewportHeight)
-            let camZ = terrain.startZ + flyOffset
-            // Fly forward at a low survey height, looking ahead over the land.
-            let eye = Point3D(x: terrain.startX, y: terrain.startHeight + 900, z: camZ - 1600)
-            let look = Point3D(x: terrain.startX, y: terrain.startHeight + 100, z: camZ + 1200)
+
+            // Frame the herd: orbit slowly around the enemies' centroid so the
+            // dinosaurs are clearly in view. Falls back to a forward fly-over
+            // when there are no enemies.
+            var focusX = terrain.startX, focusZ = terrain.startZ
+            var focusY = terrain.startHeight + 150
+            if !enemies.isEmpty {
+                var sx: Float = 0, sz: Float = 0, sy: Float = 0
+                for e in enemies {
+                    sx += e.baseTransform.value[3][0]
+                    sy += e.baseTransform.value[3][1]
+                    sz += e.baseTransform.value[3][2]
+                }
+                let n = Float(enemies.count)
+                focusX = sx / n; focusY = sy / n + 150; focusZ = sz / n
+            }
+            flyOffset += clock.framesPerSecondFrac * 0.25 // slow orbit (radians)
+            let radius: Float = 1600
+            let eye = Point3D(x: focusX + cosf(flyOffset) * radius,
+                              y: focusY + 500,
+                              z: focusZ + sinf(flyOffset) * radius)
+            let look = Point3D(x: focusX, y: focusY, z: focusZ)
             renderer.setCamera(
                 eye: eye, center: look, up: Vector3D(x: 0, y: 1, z: 0),
-                aspect: aspect, fovYDegrees: 75, near: 30, far: 30000)
+                aspect: aspect, fovYDegrees: 70, near: 30, far: 30000)
             renderer.draw(terrain.mesh, transform: .identity)
 
             // Scenery: draw each placed item's meshes at its world transform.
@@ -153,6 +175,16 @@ public final class GameWindow {
                         renderer.draw(scenery.model.meshes[meshIndex], transform: placement.transform)
                     }
                 }
+            }
+
+            // Enemies: deform each skeleton into world space and draw it.
+            for enemy in enemies {
+                enemy.instance.update(dt: clock.framesPerSecondFrac, baseTransform: enemy.baseTransform)
+                for (i, mesh) in enemy.render.meshes.enumerated() where i < enemy.instance.deformedPoints.count {
+                    mesh.updateGeometry(points: enemy.instance.deformedPoints[i],
+                                        normals: enemy.instance.deformedNormals[i])
+                }
+                for mesh in enemy.render.meshes { renderer.draw(mesh, transform: .identity) }
             }
             return
         }
