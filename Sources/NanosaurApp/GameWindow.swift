@@ -57,6 +57,11 @@ public final class GameWindow {
     /// deformable render meshes, and a world placement transform.
     public var enemies: [AnimatedEnemy] = []
 
+    /// A keyboard-driven player character; when set, the camera chases it.
+    public var player: PlayerController?
+    /// Terrain height lookup for grounding the player.
+    public var terrainHeight: ((Float, Float) -> Float)?
+
     private var flyOffset: Float = 0
 
     private let renderer = Renderer()
@@ -133,39 +138,66 @@ public final class GameWindow {
         }
     }
 
+    /// Maps the current SDL keyboard state to player input (WASD / arrows to
+    /// move + turn, space to jet).
+    private func readPlayerInput() -> PlayerInput {
+        var input = PlayerInput()
+        guard let kb = SDL_GetKeyboardState(nil) else { return input }
+        func down(_ sc: SDL_Scancode) -> Bool { kb[Int(sc.rawValue)] }
+        input.forward = down(SDL_SCANCODE_W) || down(SDL_SCANCODE_UP)
+        input.back = down(SDL_SCANCODE_S) || down(SDL_SCANCODE_DOWN)
+        input.left = down(SDL_SCANCODE_A) || down(SDL_SCANCODE_LEFT)
+        input.right = down(SDL_SCANCODE_D) || down(SDL_SCANCODE_RIGHT)
+        input.jet = down(SDL_SCANCODE_SPACE)
+        return input
+    }
+
     /// Renders one frame's contents (clear + future geometry). Factored out so
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
 
-        // Terrain: fly the camera forward over the landscape.
+        // Terrain scene: a driveable player if present, else an orbit/fly-over.
         if let terrain {
             let aspect = Float(viewportWidth) / Float(viewportHeight)
+            let heightFn = terrainHeight ?? { _, _ in terrain.startHeight }
 
-            // Frame the herd: orbit slowly around the enemies' centroid so the
-            // dinosaurs are clearly in view. Falls back to a forward fly-over
-            // when there are no enemies.
-            var focusX = terrain.startX, focusZ = terrain.startZ
-            var focusY = terrain.startHeight + 150
-            if !enemies.isEmpty {
-                var sx: Float = 0, sz: Float = 0, sy: Float = 0
-                for e in enemies {
-                    sx += e.baseTransform.value[3][0]
-                    sy += e.baseTransform.value[3][1]
-                    sz += e.baseTransform.value[3][2]
+            if let player {
+                // Update the player from the keyboard and chase-cam behind it.
+                player.update(dt: clock.framesPerSecondFrac, input: readPlayerInput(), groundHeight: heightFn)
+                let fwd = player.forwardDirection
+                let eye = Point3D(x: player.position.x - fwd.x * 450,
+                                  y: player.position.y + 280,
+                                  z: player.position.z - fwd.z * 450)
+                let look = Point3D(x: player.position.x + fwd.x * 250,
+                                   y: player.position.y + 90,
+                                   z: player.position.z + fwd.z * 250)
+                renderer.setCamera(eye: eye, center: look, up: Vector3D(x: 0, y: 1, z: 0),
+                                   aspect: aspect, fovYDegrees: 70, near: 20, far: 30000)
+            } else {
+                // Frame the herd: orbit slowly around the enemies' centroid.
+                var focusX = terrain.startX, focusZ = terrain.startZ
+                var focusY = terrain.startHeight + 150
+                if !enemies.isEmpty {
+                    var sx: Float = 0, sz: Float = 0, sy: Float = 0
+                    for e in enemies {
+                        sx += e.baseTransform.value[3][0]
+                        sy += e.baseTransform.value[3][1]
+                        sz += e.baseTransform.value[3][2]
+                    }
+                    let n = Float(enemies.count)
+                    focusX = sx / n; focusY = sy / n + 150; focusZ = sz / n
                 }
-                let n = Float(enemies.count)
-                focusX = sx / n; focusY = sy / n + 150; focusZ = sz / n
+                flyOffset += clock.framesPerSecondFrac * 0.25 // slow orbit (radians)
+                let radius: Float = 1600
+                let eye = Point3D(x: focusX + cosf(flyOffset) * radius,
+                                  y: focusY + 500,
+                                  z: focusZ + sinf(flyOffset) * radius)
+                renderer.setCamera(
+                    eye: eye, center: Point3D(x: focusX, y: focusY, z: focusZ),
+                    up: Vector3D(x: 0, y: 1, z: 0),
+                    aspect: aspect, fovYDegrees: 70, near: 30, far: 30000)
             }
-            flyOffset += clock.framesPerSecondFrac * 0.25 // slow orbit (radians)
-            let radius: Float = 1600
-            let eye = Point3D(x: focusX + cosf(flyOffset) * radius,
-                              y: focusY + 500,
-                              z: focusZ + sinf(flyOffset) * radius)
-            let look = Point3D(x: focusX, y: focusY, z: focusZ)
-            renderer.setCamera(
-                eye: eye, center: look, up: Vector3D(x: 0, y: 1, z: 0),
-                aspect: aspect, fovYDegrees: 70, near: 30, far: 30000)
             renderer.draw(terrain.mesh, transform: .identity)
 
             // Scenery: draw each placed item's meshes at its world transform.
@@ -185,6 +217,15 @@ public final class GameWindow {
                                         normals: enemy.instance.deformedNormals[i])
                 }
                 for mesh in enemy.render.meshes { renderer.draw(mesh, transform: .identity) }
+            }
+
+            // Player: its deformed geometry was updated above; draw it.
+            if let player {
+                for (i, mesh) in player.render.meshes.enumerated() where i < player.instance.deformedPoints.count {
+                    mesh.updateGeometry(points: player.instance.deformedPoints[i],
+                                        normals: player.instance.deformedNormals[i])
+                }
+                for mesh in player.render.meshes { renderer.draw(mesh, transform: .identity) }
             }
             return
         }
