@@ -61,6 +61,8 @@ public final class GameWindow {
     public var player: PlayerController?
     /// Terrain height lookup for grounding the player.
     public var terrainHeight: ((Float, Float) -> Float)?
+    /// The in-game infobar overlay.
+    public var hud: HUD?
 
     private var flyOffset: Float = 0
 
@@ -227,6 +229,9 @@ public final class GameWindow {
                 }
                 for mesh in player.render.meshes { renderer.draw(mesh, transform: .identity) }
             }
+
+            // HUD overlay (infobar) drawn last, over the 3D scene.
+            hud?.draw(with: renderer)
             return
         }
 
