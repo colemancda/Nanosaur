@@ -127,6 +127,17 @@ public final class RenderableMesh {
         points.deallocate(); normals?.deallocate(); uvs?.deallocate(); indices.deallocate()
     }
 
+    /// Overwrite the vertex positions/normals with freshly deformed geometry
+    /// (used each frame by the skeleton animator).
+    public func updateGeometry(points newPoints: [Float], normals newNormals: [Float]) {
+        let pc = min(newPoints.count, points.count)
+        for i in 0..<pc { points[i] = newPoints[i] }
+        if let normals {
+            let nc = min(newNormals.count, normals.count)
+            for i in 0..<nc { normals[i] = newNormals[i] }
+        }
+    }
+
     /// Center + radius of the bounding sphere over several meshes, for framing.
     public static func bounds(of meshes: [RenderableMesh]) -> (center: Point3D, radius: Float) {
         guard !meshes.isEmpty else { return (Point3D(), 1) }
