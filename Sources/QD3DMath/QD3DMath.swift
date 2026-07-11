@@ -93,6 +93,37 @@ public struct Matrix4x4: Sendable, Equatable {
         }
         return Matrix4x4(value: result)
     }
+
+    // Single-transform builders (QuickDraw 3D row-vector rotation matrices:
+    // point' = point * M), matching Q3Matrix4x4_Set{Scale,Translate,Rotate_*}.
+
+    public static func scale(_ x: Float, _ y: Float, _ z: Float) -> Matrix4x4 {
+        Matrix4x4(value: [[x, 0, 0, 0], [0, y, 0, 0], [0, 0, z, 0], [0, 0, 0, 1]])
+    }
+
+    public static func translate(_ x: Float, _ y: Float, _ z: Float) -> Matrix4x4 {
+        Matrix4x4(value: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [x, y, z, 1]])
+    }
+
+    public static func rotationX(_ a: Float) -> Matrix4x4 {
+        let c = cos(a), s = sin(a)
+        return Matrix4x4(value: [[1, 0, 0, 0], [0, c, s, 0], [0, -s, c, 0], [0, 0, 0, 1]])
+    }
+
+    public static func rotationY(_ a: Float) -> Matrix4x4 {
+        let c = cos(a), s = sin(a)
+        return Matrix4x4(value: [[c, 0, -s, 0], [0, 1, 0, 0], [s, 0, c, 0], [0, 0, 0, 1]])
+    }
+
+    public static func rotationZ(_ a: Float) -> Matrix4x4 {
+        let c = cos(a), s = sin(a)
+        return Matrix4x4(value: [[c, s, 0, 0], [-s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    }
+
+    /// Combined X-then-Y-then-Z rotation (Q3Matrix4x4_SetRotate_XYZ).
+    public static func rotationXYZ(_ x: Float, _ y: Float, _ z: Float) -> Matrix4x4 {
+        rotationX(x).multiplied(by: rotationY(y)).multiplied(by: rotationZ(z))
+    }
 }
 
 // MARK: - Vector primitives (Q3Vector*/Q3Point*)
