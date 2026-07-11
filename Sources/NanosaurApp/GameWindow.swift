@@ -48,6 +48,10 @@ public final class GameWindow {
     /// Terrain to fly over: the landscape mesh, its texture atlas (kept alive),
     /// and the player start. Takes precedence over everything else.
     public var terrain: (mesh: RenderableMesh, atlas: Texture2D, startX: Float, startZ: Float, startHeight: Float)?
+
+    /// Scenery placed on the terrain: a shared model file plus per-item
+    /// (object-index, world-transform) placements drawn over the landscape.
+    public var scenery: (model: RenderableModel, placements: [(object: Int, transform: Matrix4x4)])?
     private var flyOffset: Float = 0
 
     private let renderer = Renderer()
@@ -131,15 +135,25 @@ public final class GameWindow {
 
         // Terrain: fly the camera forward over the landscape.
         if let terrain {
-            flyOffset += clock.framesPerSecondFrac * 500 // ~500 units/sec forward
+            flyOffset += clock.framesPerSecondFrac * 500 // fly forward
             let aspect = Float(viewportWidth) / Float(viewportHeight)
             let camZ = terrain.startZ + flyOffset
-            let eye = Point3D(x: terrain.startX, y: terrain.startHeight + 700, z: camZ - 1100)
-            let look = Point3D(x: terrain.startX, y: terrain.startHeight, z: camZ + 1400)
+            // Fly forward at a low survey height, looking ahead over the land.
+            let eye = Point3D(x: terrain.startX, y: terrain.startHeight + 900, z: camZ - 1600)
+            let look = Point3D(x: terrain.startX, y: terrain.startHeight + 100, z: camZ + 1200)
             renderer.setCamera(
                 eye: eye, center: look, up: Vector3D(x: 0, y: 1, z: 0),
-                aspect: aspect, fovYDegrees: 70, near: 30, far: 25000)
+                aspect: aspect, fovYDegrees: 75, near: 30, far: 30000)
             renderer.draw(terrain.mesh, transform: .identity)
+
+            // Scenery: draw each placed item's meshes at its world transform.
+            if let scenery {
+                for placement in scenery.placements where placement.object < scenery.model.objects.count {
+                    for meshIndex in scenery.model.objects[placement.object] {
+                        renderer.draw(scenery.model.meshes[meshIndex], transform: placement.transform)
+                    }
+                }
+            }
             return
         }
 
