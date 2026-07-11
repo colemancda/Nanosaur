@@ -44,6 +44,12 @@ public final class GameWindow {
     /// Animated skeleton to display: the deformer plus the render meshes it
     /// writes into each frame. Takes precedence over `model` when set.
     public var skeleton: (instance: SkeletonInstance, render: RenderableModel)?
+
+    /// Terrain to fly over: the landscape mesh, its texture atlas (kept alive),
+    /// and the player start. Takes precedence over everything else.
+    public var terrain: (mesh: RenderableMesh, atlas: Texture2D, startX: Float, startZ: Float, startHeight: Float)?
+    private var flyOffset: Float = 0
+
     private let renderer = Renderer()
     private var spin: Float = 0
     private let viewportWidth: Int32
@@ -122,6 +128,20 @@ public final class GameWindow {
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
+
+        // Terrain: fly the camera forward over the landscape.
+        if let terrain {
+            flyOffset += clock.framesPerSecondFrac * 500 // ~500 units/sec forward
+            let aspect = Float(viewportWidth) / Float(viewportHeight)
+            let camZ = terrain.startZ + flyOffset
+            let eye = Point3D(x: terrain.startX, y: terrain.startHeight + 700, z: camZ - 1100)
+            let look = Point3D(x: terrain.startX, y: terrain.startHeight, z: camZ + 1400)
+            renderer.setCamera(
+                eye: eye, center: look, up: Vector3D(x: 0, y: 1, z: 0),
+                aspect: aspect, fovYDegrees: 70, near: 30, far: 25000)
+            renderer.draw(terrain.mesh, transform: .identity)
+            return
+        }
 
         // Animated skeleton: deform, push geometry into the render meshes, and
         // draw with an identity transform (deformed points are world-space).
