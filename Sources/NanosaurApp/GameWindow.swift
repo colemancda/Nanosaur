@@ -11,6 +11,7 @@ import Foundation
 import CSDL3
 import COpenGL
 import NanosaurEngine
+import NanosaurSkeleton
 import QD3DMath
 
 public enum GameWindowError: Error {
@@ -39,6 +40,10 @@ public final class GameWindow {
     /// Model to display (temporary model-viewer scene while the full engine is
     /// ported - the camera auto-frames it and it slowly spins).
     public var model: RenderableModel?
+
+    /// Animated skeleton to display: the deformer plus the render meshes it
+    /// writes into each frame. Takes precedence over `model` when set.
+    public var skeleton: (instance: SkeletonInstance, render: RenderableModel)?
     private let renderer = Renderer()
     private var spin: Float = 0
     private let viewportWidth: Int32
@@ -118,17 +123,38 @@ public final class GameWindow {
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
 
+        // Animated skeleton: deform, push geometry into the render meshes, and
+        // draw with an identity transform (deformed points are world-space).
+        if let skeleton {
+            skeleton.instance.update(dt: clock.framesPerSecondFrac)
+            for (i, mesh) in skeleton.render.meshes.enumerated() where i < skeleton.instance.deformedPoints.count {
+                mesh.updateGeometry(points: skeleton.instance.deformedPoints[i],
+                                    normals: skeleton.instance.deformedNormals[i])
+            }
+            frameCameraOnDeformed(skeleton.instance.deformedPoints)
+            for mesh in skeleton.render.meshes { renderer.draw(mesh, transform: .identity) }
+            return
+        }
+
         guard let model, !model.meshes.isEmpty else { return }
 
-        let (center, radius) = RenderableMesh.bounds(of: model.meshes)
-        let aspect = Float(viewportWidth) / Float(viewportHeight)
+        let center = frameCamera(on: model.meshes)
+        spin += clock.framesPerSecondFrac // ~1 rad/sec
 
-        // Frame the bounding sphere from a 3/4 angle (front-right, slightly
-        // above) so long models aren't viewed end-on. distance ~2.2R fits the
-        // sphere in a 60° vertical fov with margin.
+        // Spin the model about its own center.
+        let transform = Matrix4x4.translate(-center.x, -center.y, -center.z)
+            .multiplied(by: .rotationY(spin))
+            .multiplied(by: .translate(center.x, center.y, center.z))
+        for mesh in model.meshes { renderer.draw(mesh, transform: transform) }
+    }
+
+    /// Frame the camera on the meshes from a 3/4 profile (weighted along X so
+    /// long models like the Rex aren't viewed end-on). Returns the center.
+    @discardableResult
+    private func frameCamera(on meshes: [RenderableMesh]) -> Point3D {
+        let (center, radius) = RenderableMesh.bounds(of: meshes)
+        let aspect = Float(viewportWidth) / Float(viewportHeight)
         let distance = radius * 1.6
-        // Weighted toward X so long models (like the Rex, whose length runs
-        // along Z) are seen in 3/4 profile rather than end-on.
         let dir = Vector3D(x: 1, y: 0.35, z: 0.5).normalized()
         let eye = Point3D(x: center.x + dir.x * distance,
                           y: center.y + dir.y * distance,
@@ -136,17 +162,34 @@ public final class GameWindow {
         renderer.setCamera(
             eye: eye, center: center, up: Vector3D(x: 0, y: 1, z: 0),
             aspect: aspect, near: max(1, radius * 0.1), far: distance + radius * 4)
+        return center
+    }
 
-        spin += clock.framesPerSecondFrac // ~1 rad/sec
-
-        // Spin the model about its own center.
-        let transform = Matrix4x4.translate(-center.x, -center.y, -center.z)
-            .multiplied(by: .rotationY(spin))
-            .multiplied(by: .translate(center.x, center.y, center.z))
-
-        for mesh in model.meshes {
-            renderer.draw(mesh, transform: transform)
+    /// Frame the camera on live deformed geometry (world-space float triples),
+    /// so an animated skeleton stays centered as its pose changes.
+    private func frameCameraOnDeformed(_ meshes: [[Float]]) {
+        var lo = Point3D(x: .greatestFiniteMagnitude, y: .greatestFiniteMagnitude, z: .greatestFiniteMagnitude)
+        var hi = Point3D(x: -.greatestFiniteMagnitude, y: -.greatestFiniteMagnitude, z: -.greatestFiniteMagnitude)
+        for mesh in meshes {
+            var i = 0
+            while i + 2 < mesh.count {
+                lo.x = min(lo.x, mesh[i]); hi.x = max(hi.x, mesh[i])
+                lo.y = min(lo.y, mesh[i + 1]); hi.y = max(hi.y, mesh[i + 1])
+                lo.z = min(lo.z, mesh[i + 2]); hi.z = max(hi.z, mesh[i + 2])
+                i += 3
+            }
         }
+        guard lo.x <= hi.x else { return }
+        let center = Point3D(x: (lo.x + hi.x) / 2, y: (lo.y + hi.y) / 2, z: (lo.z + hi.z) / 2)
+        let dx = hi.x - lo.x, dy = hi.y - lo.y, dz = hi.z - lo.z
+        let radius = max(1, (dx * dx + dy * dy + dz * dz).squareRoot() / 2)
+        let aspect = Float(viewportWidth) / Float(viewportHeight)
+        let distance = radius * 1.6
+        let dir = Vector3D(x: 1, y: 0.35, z: 0.5).normalized()
+        let eye = Point3D(x: center.x + dir.x * distance, y: center.y + dir.y * distance, z: center.z + dir.z * distance)
+        renderer.setCamera(
+            eye: eye, center: center, up: Vector3D(x: 0, y: 1, z: 0),
+            aspect: aspect, near: max(1, radius * 0.1), far: distance + radius * 4)
     }
 
     /// Reads the current color buffer and writes it as a binary PPM (P6). Used
