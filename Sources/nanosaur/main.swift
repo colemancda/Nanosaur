@@ -150,24 +150,22 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
     // Populate the world with scenery from the terrain item list.
     let map2Unit: Float = 140.0 / 32.0 // MAP2UNIT_VALUE
 
-    // Anchor the fly-over camera on the densest enemy cluster (a herd of
-    // dinosaurs), bucketing items into 3000-unit cells.
-    var cellCounts: [Int64: Int] = [:]
-    let anchorTypes: Set<UInt16> = [2, 3, 7, 8, 16] // enemy types
-    for item in map.items where anchorTypes.contains(item.type) {
-        let cx = Int64(Float(item.x) * map2Unit / 3000)
-        let cz = Int64(Float(item.y) * map2Unit / 3000)
-        cellCounts[cx << 32 | (cz & 0xFFFF_FFFF), default: 0] += 1
-    }
-    var anchorX = geo.startX, anchorZ = geo.startZ
-    if let best = cellCounts.max(by: { $0.value < $1.value })?.key {
-        anchorX = (Float(best >> 32) + 0.5) * 3000
-        anchorZ = (Float(Int32(truncatingIfNeeded: best)) + 0.5) * 3000
-    }
-    window.terrain = (mesh, atlas, anchorX, anchorZ, geo.heightAtWorld(anchorX, anchorZ))
+    window.terrain = (mesh, atlas, geo.startX, geo.startZ, geo.startHeight)
+    window.terrainHeight = { geo.heightAtWorld($0, $1) }
 
-    // Roaming animated enemies near the camera.
-    loadEnemies(window, map: map, geo: geo, anchorX: anchorX, anchorZ: anchorZ)
+    // Roaming animated enemies near the player start.
+    loadEnemies(window, map: map, geo: geo, anchorX: geo.startX, anchorZ: geo.startZ)
+
+    // The driveable player (the Deinonychus), unless NANOSAUR_ORBIT is set.
+    if ProcessInfo.processInfo.environment["NANOSAUR_ORBIT"] == nil,
+       let pd = fm.contents(atPath: "Data/Skeletons/Deinon.3dmf"),
+       let pMeshFile = try? MetaFile3D(parsing3DMF: pd),
+       let ps = fm.contents(atPath: "Data/Skeletons/Deinon.skeleton.rsrc"),
+       let pSkelFile = try? SkeletonFile(parsingResourceFork: ps) {
+        let pModel = SkeletonModel(meshFile: pMeshFile, skeletonFile: pSkelFile)
+        let start = Point3D(x: geo.startX, y: geo.startHeight, z: geo.startZ)
+        window.player = PlayerController(model: pModel, render: RenderableModel(pMeshFile), start: start)
+    }
     if let modelData = fm.contents(atPath: "Data/Models/Level1_Models.3dmf"),
        let modelFile = try? MetaFile3D(parsing3DMF: modelData) {
         let model = RenderableModel(modelFile)
