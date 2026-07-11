@@ -141,11 +141,11 @@ let package = Package(
 
         .target(
             name: "NanosaurApp",
-            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "QD3DMath"]
+            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "QD3DMath", "QD3DFile"]
         ),
         .executableTarget(
             name: "nanosaur",
-            dependencies: ["NanosaurApp"]
+            dependencies: ["NanosaurApp", "QD3DFile"]
         ),
     ],
     cxxLanguageStandard: .cxx20
