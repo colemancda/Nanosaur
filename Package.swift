@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "TerrainFile", type: .static, targets: ["TerrainFile"]),
         .library(name: "QD3DFile", type: .static, targets: ["QD3DFile"]),
         .library(name: "QD3DMath", type: .static, targets: ["QD3DMath"]),
+        .library(name: "NanosaurPlatform", type: .static, targets: ["NanosaurPlatform"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -97,6 +98,29 @@ let package = Package(
         .testTarget(
             name: "QD3DMathTests",
             dependencies: ["QD3DMath"]
+        ),
+
+        // MARK: - Platform layer (SDL3 + OpenGL system libraries, linked from Swift)
+
+        .systemLibrary(
+            name: "CSDL3",
+            path: "Sources/CSDL3",
+            pkgConfig: "sdl3",
+            providers: [.apt(["libsdl3-dev"]), .brew(["sdl3"])]
+        ),
+        .systemLibrary(
+            name: "COpenGL",
+            path: "Sources/COpenGL",
+            pkgConfig: "gl",
+            providers: [.apt(["libgl1-mesa-dev"])]
+        ),
+        .target(
+            name: "NanosaurPlatform",
+            dependencies: ["CSDL3", "COpenGL", "QD3DMath"]
+        ),
+        .testTarget(
+            name: "NanosaurPlatformTests",
+            dependencies: ["NanosaurPlatform"]
         ),
     ],
     cxxLanguageStandard: .cxx20
