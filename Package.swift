@@ -23,6 +23,8 @@ let package = Package(
         .library(name: "QD3DMath", type: .static, targets: ["QD3DMath"]),
         .library(name: "NanosaurPlatform", type: .static, targets: ["NanosaurPlatform"]),
         .library(name: "NanosaurEngine", type: .static, targets: ["NanosaurEngine"]),
+        .library(name: "NanosaurApp", type: .static, targets: ["NanosaurApp"]),
+        .executable(name: "nanosaur", targets: ["nanosaur"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -133,6 +135,17 @@ let package = Package(
         .testTarget(
             name: "NanosaurEngineTests",
             dependencies: ["NanosaurEngine"]
+        ),
+
+        // MARK: - NanosaurApp (SDL window + GL context + main loop) and executable
+
+        .target(
+            name: "NanosaurApp",
+            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "QD3DMath"]
+        ),
+        .executableTarget(
+            name: "nanosaur",
+            dependencies: ["NanosaurApp"]
         ),
     ],
     cxxLanguageStandard: .cxx20
