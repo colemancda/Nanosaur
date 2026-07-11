@@ -240,6 +240,7 @@ public final class SkeletonInstance {
         guard animNum < model.anims.count else { return }
         let anim = model.anims[animNum]
         for joint in 0..<model.numJoints {
+            guard joint < anim.jointKeyframes.count else { return }
             let frames = anim.jointKeyframes[joint]
             if frames.isEmpty { return }
 
@@ -304,14 +305,16 @@ public final class SkeletonInstance {
         gMatrix = jointTransform[joint].multiplied(by: gMatrix)
         let bone = model.bones[joint]
 
-        // Transform this bone's normals (3x3, no translation).
-        for ni in bone.normalIndices {
+        // Transform this bone's normals (3x3, no translation). Indices are
+        // guarded in case a file's normal decomposition doesn't line up exactly.
+        for ni in bone.normalIndices where ni < transformedNormals.count {
             transformedNormals[ni] = transformVector(model.decomposedNormals[ni], gMatrix)
         }
-        for pi in bone.pointIndices {
-            for ref in model.decomposedPoints[pi].refs {
+        for pi in bone.pointIndices where pi < model.decomposedPoints.count {
+            for ref in model.decomposedPoints[pi].refs where ref.normalIndex < transformedNormals.count {
                 let tn = transformedNormals[ref.normalIndex]
                 let base = ref.vertex * 3
+                guard base + 2 < deformedNormals[ref.mesh].count else { continue }
                 deformedNormals[ref.mesh][base + 0] = tn.x
                 deformedNormals[ref.mesh][base + 1] = tn.y
                 deformedNormals[ref.mesh][base + 2] = tn.z
@@ -319,10 +322,11 @@ public final class SkeletonInstance {
         }
 
         // Transform this bone's points (full transform, into world space).
-        for pi in bone.pointIndices {
+        for pi in bone.pointIndices where pi < model.decomposedPoints.count {
             let wp = model.decomposedPoints[pi].boneRelPoint.transformed(by: gMatrix)
             for ref in model.decomposedPoints[pi].refs {
                 let base = ref.vertex * 3
+                guard base + 2 < deformedPoints[ref.mesh].count else { continue }
                 deformedPoints[ref.mesh][base + 0] = wp.x
                 deformedPoints[ref.mesh][base + 1] = wp.y
                 deformedPoints[ref.mesh][base + 2] = wp.z
