@@ -11,6 +11,7 @@ import Foundation
 import CSDL3
 import COpenGL
 import NanosaurEngine
+import QD3DMath
 
 public enum GameWindowError: Error {
     case sdlInitFailed(String)
@@ -35,8 +36,18 @@ public final class GameWindow {
 
     public let objects = ObjectManager()
 
+    /// Meshes to display (temporary model-viewer scene while the full engine is
+    /// ported - the camera auto-frames them and they slowly spin).
+    public var renderables: [RenderableMesh] = []
+    private let renderer = Renderer()
+    private var spin: Float = 0
+    private let viewportWidth: Int32
+    private let viewportHeight: Int32
+
     /// Initial virtual window size (the game's classic 640x480 design size).
     public init(title: String = "Nanosaur", width: Int32 = 640, height: Int32 = 480) throws {
+        viewportWidth = width
+        viewportHeight = height
         guard SDL_Init(SDL_InitFlags(kInitVideo)) else {
             throw GameWindowError.sdlInitFailed(String(cString: SDL_GetError()))
         }
@@ -71,7 +82,9 @@ public final class GameWindow {
         performanceFrequency = SDL_GetPerformanceFrequency()
         previousCounter = SDL_GetPerformanceCounter()
 
+        glViewport(0, 0, width, height)
         glEnable(GLenum(GL_DEPTH_TEST))
+        renderer.enableBasicLighting()
         glClearColor(0, 0, 0.15, 1)
     }
 
@@ -104,7 +117,26 @@ public final class GameWindow {
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
-        // (geometry drawing goes here as the renderer is ported)
+
+        guard !renderables.isEmpty else { return }
+
+        let (center, radius) = RenderableMesh.bounds(of: renderables)
+        let aspect = Float(viewportWidth) / Float(viewportHeight)
+        let eye = Point3D(x: center.x, y: center.y, z: center.z + radius * 3)
+        renderer.setCamera(
+            eye: eye, center: center, up: Vector3D(x: 0, y: 1, z: 0),
+            aspect: aspect, near: max(0.1, radius * 0.05), far: radius * 10)
+
+        spin += clock.framesPerSecondFrac // ~1 rad/sec
+
+        // Spin the model about its own center.
+        let model = Matrix4x4.translate(-center.x, -center.y, -center.z)
+            .multiplied(by: .rotationY(spin))
+            .multiplied(by: .translate(center.x, center.y, center.z))
+
+        for mesh in renderables {
+            renderer.draw(mesh, transform: model)
+        }
     }
 
     /// Reads the current color buffer and writes it as a binary PPM (P6). Used
