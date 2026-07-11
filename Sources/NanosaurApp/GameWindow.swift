@@ -36,9 +36,9 @@ public final class GameWindow {
 
     public let objects = ObjectManager()
 
-    /// Meshes to display (temporary model-viewer scene while the full engine is
-    /// ported - the camera auto-frames them and they slowly spin).
-    public var renderables: [RenderableMesh] = []
+    /// Model to display (temporary model-viewer scene while the full engine is
+    /// ported - the camera auto-frames it and it slowly spins).
+    public var model: RenderableModel?
     private let renderer = Renderer()
     private var spin: Float = 0
     private let viewportWidth: Int32
@@ -118,24 +118,34 @@ public final class GameWindow {
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
 
-        guard !renderables.isEmpty else { return }
+        guard let model, !model.meshes.isEmpty else { return }
 
-        let (center, radius) = RenderableMesh.bounds(of: renderables)
+        let (center, radius) = RenderableMesh.bounds(of: model.meshes)
         let aspect = Float(viewportWidth) / Float(viewportHeight)
-        let eye = Point3D(x: center.x, y: center.y, z: center.z + radius * 3)
+
+        // Frame the bounding sphere from a 3/4 angle (front-right, slightly
+        // above) so long models aren't viewed end-on. distance ~2.2R fits the
+        // sphere in a 60° vertical fov with margin.
+        let distance = radius * 1.6
+        // Weighted toward X so long models (like the Rex, whose length runs
+        // along Z) are seen in 3/4 profile rather than end-on.
+        let dir = Vector3D(x: 1, y: 0.35, z: 0.5).normalized()
+        let eye = Point3D(x: center.x + dir.x * distance,
+                          y: center.y + dir.y * distance,
+                          z: center.z + dir.z * distance)
         renderer.setCamera(
             eye: eye, center: center, up: Vector3D(x: 0, y: 1, z: 0),
-            aspect: aspect, near: max(0.1, radius * 0.05), far: radius * 10)
+            aspect: aspect, near: max(1, radius * 0.1), far: distance + radius * 4)
 
         spin += clock.framesPerSecondFrac // ~1 rad/sec
 
         // Spin the model about its own center.
-        let model = Matrix4x4.translate(-center.x, -center.y, -center.z)
+        let transform = Matrix4x4.translate(-center.x, -center.y, -center.z)
             .multiplied(by: .rotationY(spin))
             .multiplied(by: .translate(center.x, center.y, center.z))
 
-        for mesh in renderables {
-            renderer.draw(mesh, transform: model)
+        for mesh in model.meshes {
+            renderer.draw(mesh, transform: transform)
         }
     }
 
