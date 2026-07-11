@@ -3,8 +3,10 @@
 import Foundation
 import NanosaurApp
 import NanosaurSkeleton
+import NanosaurTerrain
 import QD3DFile
 import SkeletonFile
+import TerrainFile
 
 /// Loads a .3dmf model's meshes as renderables, if the file exists. While the
 /// full engine is being ported the executable acts as a model viewer: it shows
@@ -53,13 +55,35 @@ private func loadDemoSkeleton() -> (instance: SkeletonInstance, render: Renderab
     return (instance, RenderableModel(meshFile))
 }
 
+/// Loads Level 1's terrain (heightmap mesh + tileset atlas) as the scene.
+private func loadDemoTerrain(_ window: GameWindow) -> Bool {
+    let fm = FileManager.default
+    guard let td = fm.contents(atPath: "Data/Terrain/Level1.ter"),
+          let map = try? TerrainMap(parsing: td),
+          let sd = fm.contents(atPath: "Data/Terrain/Level1.trt"),
+          let tileset = try? TerrainTileset(parsing: sd)
+    else { return false }
+
+    let geo = TerrainGeometry(map: map, tileset: tileset)
+    guard let atlas = Texture2D(rgba: geo.atlasRGBA, width: geo.atlasWidth, height: geo.atlasHeight) else { return false }
+    let mesh = RenderableMesh(points: geo.points, normals: geo.normals, uvs: geo.uvs,
+                              indices: geo.indices, textureName: atlas.name)
+    window.terrain = (mesh, atlas, geo.startX, geo.startZ, geo.startHeight)
+    return true
+}
+
 do {
     let window = try GameWindow()
-    // Prefer an animated skeleton; fall back to a static model.
-    if let skeleton = loadDemoSkeleton() {
+    let env = ProcessInfo.processInfo.environment
+    // Default to the terrain fly-over; NANOSAUR_SKELETON shows a creature,
+    // NANOSAUR_MODEL a static model.
+    if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
         window.skeleton = skeleton
-    } else {
+    } else if env["NANOSAUR_MODEL"] != nil {
         window.model = loadDemoModel()
+    } else if !loadDemoTerrain(window) {
+        if let skeleton = loadDemoSkeleton() { window.skeleton = skeleton }
+        else { window.model = loadDemoModel() }
     }
     window.run(maxFrames: maxFrames, screenshotPath: screenshotPath)
 } catch {
