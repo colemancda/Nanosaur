@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "SkeletonFile", type: .static, targets: ["SkeletonFile"]),
         .library(name: "TerrainFile", type: .static, targets: ["TerrainFile"]),
         .library(name: "QD3DFile", type: .static, targets: ["QD3DFile"]),
+        .library(name: "QD3DMath", type: .static, targets: ["QD3DMath"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-binary-parsing", from: "0.0.2")
@@ -86,6 +87,16 @@ let package = Package(
         .testTarget(
             name: "QD3DFileTests",
             dependencies: ["QD3DFile"]
+        ),
+
+        // MARK: - QD3DMath (core 3D math + geometry types)
+
+        .target(
+            name: "QD3DMath"
+        ),
+        .testTarget(
+            name: "QD3DMathTests",
+            dependencies: ["QD3DMath"]
         ),
     ],
     cxxLanguageStandard: .cxx20
