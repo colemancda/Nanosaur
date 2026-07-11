@@ -152,6 +152,7 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
 
     window.terrain = (mesh, atlas, geo.startX, geo.startZ, geo.startHeight)
     window.terrainHeight = { geo.heightAtWorld($0, $1) }
+    window.hud = HUD(dataDir: "Data")
 
     // Roaming animated enemies near the player start.
     loadEnemies(window, map: map, geo: geo, anchorX: geo.startX, anchorZ: geo.startZ)
