@@ -7,6 +7,7 @@
 // MAX_FPS busy-wait cap), pump SDL events, run MoveObjects, then clear and swap
 // the GL buffers. Rendering of actual geometry is filled in as the renderer
 // layer is ported; for now the loop stands up a window and clears it.
+import Foundation
 import CSDL3
 import COpenGL
 import NanosaurEngine
@@ -99,9 +100,38 @@ public final class GameWindow {
         }
     }
 
+    /// Renders one frame's contents (clear + future geometry). Factored out so
+    /// both the live loop and the screenshot path share it.
+    private func renderFrame() {
+        glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
+        // (geometry drawing goes here as the renderer is ported)
+    }
+
+    /// Reads the current color buffer and writes it as a binary PPM (P6). Used
+    /// for headless smoke tests / screenshots (glReadPixels is core GL, so this
+    /// works even on a surfaceless/offscreen context where SwapWindow can't).
+    public func writeScreenshotPPM(to path: String, width: Int32 = 640, height: Int32 = 480) {
+        let w = Int(width), h = Int(height)
+        var rgba = [UInt8](repeating: 0, count: w * h * 4)
+        glPixelStorei(GLenum(GL_PACK_ALIGNMENT), 1)
+        rgba.withUnsafeMutableBytes { buf in
+            glReadPixels(0, 0, width, height, GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), buf.baseAddress)
+        }
+        // PPM is top-to-bottom; GL is bottom-to-top, so flip rows.
+        var ppm = Data("P6\n\(w) \(h)\n255\n".utf8)
+        for row in stride(from: h - 1, through: 0, by: -1) {
+            for col in 0..<w {
+                let i = (row * w + col) * 4
+                ppm.append(rgba[i]); ppm.append(rgba[i + 1]); ppm.append(rgba[i + 2])
+            }
+        }
+        try? ppm.write(to: URL(fileURLWithPath: path))
+    }
+
     /// Runs the main loop until the window is closed. If `maxFrames` is given,
-    /// stops after that many frames (useful for smoke tests / screenshots).
-    public func run(maxFrames: Int? = nil) {
+    /// stops after that many frames. If `screenshotPath` is given, captures the
+    /// final frame and returns without swapping (headless-safe).
+    public func run(maxFrames: Int? = nil, screenshotPath: String? = nil) {
         var running = true
         var frame = 0
         var event = SDL_Event()
@@ -116,13 +146,18 @@ public final class GameWindow {
             }
 
             objects.moveObjects()
-
-            glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
-            // (geometry drawing goes here as the renderer is ported)
-            SDL_GL_SwapWindow(window)
+            renderFrame()
 
             frame += 1
-            if let maxFrames, frame >= maxFrames { running = false }
+            let lastFrame = maxFrames.map { frame >= $0 } ?? false
+
+            if lastFrame, let screenshotPath {
+                writeScreenshotPPM(to: screenshotPath)
+                return // skip the swap: offscreen contexts may not support it
+            }
+
+            SDL_GL_SwapWindow(window)
+            if lastFrame { running = false }
         }
     }
 }
