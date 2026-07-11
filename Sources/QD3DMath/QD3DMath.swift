@@ -124,6 +124,45 @@ public struct Matrix4x4: Sendable, Equatable {
     public static func rotationXYZ(_ x: Float, _ y: Float, _ z: Float) -> Matrix4x4 {
         rotationX(x).multiplied(by: rotationY(y)).multiplied(by: rotationZ(z))
     }
+
+    /// The 16 floats to hand to glLoadMatrixf/glMultMatrixf so OpenGL applies
+    /// this exact transform. Our matrices use the row-vector convention
+    /// (point' = point * M); OpenGL applies a loaded (column-major) matrix as
+    /// M·v on column vectors. Working that through, GL's column-major storage
+    /// of the equivalent map is precisely this matrix's row-major flattening.
+    public var glArray: [Float] {
+        value.flatMap { $0 }
+    }
+}
+
+// MARK: - GL camera matrices (column-major, ready for glLoadMatrixf)
+
+/// gluPerspective: column-major perspective projection matrix.
+public func glPerspective(fovYDegrees: Float, aspect: Float, near: Float, far: Float) -> [Float] {
+    let f = 1 / tan(fovYDegrees * .pi / 180 / 2)
+    var m = [Float](repeating: 0, count: 16)
+    m[0] = f / aspect
+    m[5] = f
+    m[10] = (far + near) / (near - far)
+    m[11] = -1
+    m[14] = (2 * far * near) / (near - far)
+    return m
+}
+
+/// gluLookAt: column-major view matrix looking from `eye` toward `center`.
+public func glLookAt(eye: Point3D, center: Point3D, up: Vector3D) -> [Float] {
+    let f = Vector3D(x: center.x - eye.x, y: center.y - eye.y, z: center.z - eye.z).normalized()
+    let s = f.cross(up).normalized()
+    let u = s.cross(f)
+    return [
+        s.x, u.x, -f.x, 0,
+        s.y, u.y, -f.y, 0,
+        s.z, u.z, -f.z, 0,
+        -(s.x * eye.x + s.y * eye.y + s.z * eye.z),
+        -(u.x * eye.x + u.y * eye.y + u.z * eye.z),
+        (f.x * eye.x + f.y * eye.y + f.z * eye.z),
+        1,
+    ]
 }
 
 // MARK: - Vector primitives (Q3Vector*/Q3Point*)
