@@ -22,3 +22,6 @@ cache/
 # macOS metadata
 .DS_Store
 
+# Runtime save data (Swift port)
+/Nanosaur_HighScores.json
+
