@@ -165,7 +165,7 @@ let package = Package(
 
         .target(
             name: "NanosaurApp",
-            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "NanosaurSkeleton", "NanosaurTerrain", "QD3DMath", "QD3DFile", "TGAFile"]
+            dependencies: ["CSDL3", "COpenGL", "NanosaurEngine", "NanosaurSkeleton", "NanosaurTerrain", "QD3DMath", "QD3DFile", "SkeletonFile", "TGAFile"]
         ),
         .executableTarget(
             name: "nanosaur",
