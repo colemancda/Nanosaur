@@ -191,19 +191,38 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
 do {
     let window = try GameWindow()
     let env = ProcessInfo.processInfo.environment
-    // NANOSAUR_TITLE shows the title screen; default is the terrain world.
-    // NANOSAUR_SKELETON shows a creature, NANOSAUR_MODEL a static model.
-    if env["NANOSAUR_TITLE"] != nil, let title = TitleScene(dataDir: "Data") {
-        window.title = title
-    } else if env["NANOSAUR_MENU"] != nil, let menu = MenuScene(dataDir: "Data") {
-        window.menu = menu
-    } else if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
+
+    // NANOSAUR_SKELETON / NANOSAUR_MODEL are standalone viewer modes (used for
+    // asset inspection screenshots); they bypass the screen flow entirely.
+    if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
         window.skeleton = skeleton
     } else if env["NANOSAUR_MODEL"] != nil {
         window.model = loadDemoModel()
-    } else if !loadDemoTerrain(window) {
-        if let skeleton = loadDemoSkeleton() { window.skeleton = skeleton }
-        else { window.model = loadDemoModel() }
+    } else {
+        // The real app flow: title -> menu -> game, built together so the
+        // player can navigate between them, matching Boot.cpp's sequence of
+        // DoTitleScreen() -> DoMainMenu() -> the level game loop.
+        window.title = TitleScene(dataDir: "Data")
+        window.menu = MenuScene(dataDir: "Data")
+        _ = loadDemoTerrain(window)
+
+        // Direct-jump overrides, for quickly screenshotting/iterating on one
+        // screen without having to drive the keyboard flow to reach it.
+        if env["NANOSAUR_MENU"] != nil {
+            window.screen = .menu
+        } else if env["NANOSAUR_ORBIT"] != nil || env["NANOSAUR_GAME"] != nil {
+            window.screen = .game
+        } else if env["NANOSAUR_TITLE"] != nil {
+            window.screen = .title
+        } else if window.title == nil {
+            // Title assets missing (shouldn't happen with a proper Data/
+            // folder) - fall straight into the game so there's still
+            // something playable.
+            window.screen = .game
+        }
+        // Otherwise the default screen (.title) starts the normal flow: any
+        // key -> menu; Left/Right to select, Space/Return to confirm; Escape
+        // in-game returns to the menu.
     }
     window.run(maxFrames: maxFrames, screenshotPath: screenshotPath)
 } catch {
