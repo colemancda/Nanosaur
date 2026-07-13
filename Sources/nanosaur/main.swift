@@ -195,6 +195,8 @@ do {
     // NANOSAUR_SKELETON shows a creature, NANOSAUR_MODEL a static model.
     if env["NANOSAUR_TITLE"] != nil, let title = TitleScene(dataDir: "Data") {
         window.title = title
+    } else if env["NANOSAUR_MENU"] != nil, let menu = MenuScene(dataDir: "Data") {
+        window.menu = menu
     } else if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
         window.skeleton = skeleton
     } else if env["NANOSAUR_MODEL"] != nil {
