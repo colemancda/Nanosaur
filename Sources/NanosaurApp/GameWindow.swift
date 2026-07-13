@@ -63,6 +63,8 @@ public final class GameWindow {
     public var terrainHeight: ((Float, Float) -> Float)?
     /// The in-game infobar overlay.
     public var hud: HUD?
+    /// The title screen scene; when set, it's shown instead of the game.
+    public var title: TitleScene?
 
     private var flyOffset: Float = 0
 
@@ -158,6 +160,31 @@ public final class GameWindow {
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
+
+        // Title screen: the logo, tiled background, and animated Rex.
+        if let title {
+            let aspect = Float(viewportWidth) / Float(viewportHeight)
+            renderer.setCamera(eye: title.cameraFrom, center: title.cameraTo,
+                               up: Vector3D(x: 0, y: 1, z: 0),
+                               aspect: aspect, fovYDegrees: title.fovDegrees, near: 10, far: 700)
+
+            for transform in title.backgroundTransforms {
+                for meshIndex in title.model.objects[TitleScene.backgroundIndex] {
+                    renderer.draw(title.model.meshes[meshIndex], transform: transform)
+                }
+            }
+            for meshIndex in title.model.objects[TitleScene.gameNameIndex] {
+                renderer.draw(title.model.meshes[meshIndex], transform: title.gameNameTransform)
+            }
+
+            title.rexInstance.update(dt: clock.framesPerSecondFrac, baseTransform: title.rexTransform)
+            for (i, mesh) in title.rexRender.meshes.enumerated() where i < title.rexInstance.deformedPoints.count {
+                mesh.updateGeometry(points: title.rexInstance.deformedPoints[i],
+                                    normals: title.rexInstance.deformedNormals[i])
+            }
+            for mesh in title.rexRender.meshes { renderer.draw(mesh, transform: .identity) }
+            return
+        }
 
         // Terrain scene: a driveable player if present, else an orbit/fly-over.
         if let terrain {
