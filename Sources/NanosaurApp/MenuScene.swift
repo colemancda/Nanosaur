@@ -29,6 +29,38 @@ public final class MenuScene {
 
     /// Carousel rotation; advancing by 2*PI/5 brings the next icon to the front.
     public var wheelRot: Float = 0
+    /// Which icon is currently selected (0 = play/Deinon ... 4 = high scores).
+    public var currentSelection: Int = 0
+
+    // Non-blocking port of SpinMainMenuIcons: the original ran a blocking
+    // sub-loop that spun the wheel to its target before returning to the main
+    // loop; here the target is set once and wheelRot eases toward it each frame.
+    private var spinTarget: Float?
+    private var spinDirection: Float = 0
+
+    /// Spin the wheel one step counter-clockwise (Left arrow: previous icon).
+    public func spinToPrevious() {
+        currentSelection = (currentSelection == 0) ? MenuScene.iconCount - 1 : currentSelection - 1
+        spinDirection = 1
+        spinTarget = wheelRot + (2 * .pi / Float(MenuScene.iconCount))
+    }
+
+    /// Spin the wheel one step clockwise (Right arrow: next icon).
+    public func spinToNext() {
+        currentSelection = (currentSelection + 1) % MenuScene.iconCount
+        spinDirection = -1
+        spinTarget = wheelRot - (2 * .pi / Float(MenuScene.iconCount))
+    }
+
+    /// Advance the wheel spin animation. Called once per frame.
+    public func update(dt: Float) {
+        guard let target = spinTarget else { return }
+        wheelRot += spinDirection * MenuScene.spinSpeed * dt
+        if (spinDirection < 0 && wheelRot < target) || (spinDirection > 0 && wheelRot > target) {
+            wheelRot = target
+            spinTarget = nil
+        }
+    }
 
     // Menu camera (MainMenu.c): from (0,0,600) looking at the origin, fov 1 rad.
     public let cameraFrom = Point3D(x: 0, y: 0, z: 600)
@@ -60,11 +92,13 @@ public final class MenuScene {
                 MenuScene.wheelCenterZ + (cosf(r) * MenuScene.wheelSeparation - 5))
     }
 
-    /// The Deinonychus (slot 0) world transform, scale 0.8.
+    /// The Deinonychus (slot 0) world transform, scale 0.8. The skeleton's own
+    /// rotation gets an extra +PI/2 offset versus its orbit position (MainMenu.c:
+    /// "offset skeleton rot by 90 degrees").
     public var deinonTransform: Matrix4x4 {
         let p = iconPlacement(slot: 0)
         return Matrix4x4.scale(0.8, 0.8, 0.8)
-            .multiplied(by: Matrix4x4.rotationY(p.rot))
+            .multiplied(by: Matrix4x4.rotationY(p.rot + .pi / 2))
             .multiplied(by: Matrix4x4.translate(p.x, 0, p.z))
     }
 
