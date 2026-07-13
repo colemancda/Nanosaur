@@ -65,6 +65,8 @@ public final class GameWindow {
     public var hud: HUD?
     /// The title screen scene; when set, it's shown instead of the game.
     public var title: TitleScene?
+    /// The main menu scene; when set, it's shown instead of the game.
+    public var menu: MenuScene?
 
     private var flyOffset: Float = 0
 
@@ -160,6 +162,31 @@ public final class GameWindow {
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
+
+        // Main menu: the carousel of icons around the animated Deinonychus.
+        if let menu {
+            let aspect = Float(viewportWidth) / Float(viewportHeight)
+            renderer.setCamera(eye: menu.cameraFrom, center: menu.cameraTo,
+                               up: Vector3D(x: 0, y: 1, z: 0),
+                               aspect: aspect, fovYDegrees: menu.fovDegrees, near: 50, far: 1000)
+
+            for meshIndex in menu.model.objects[menu.backgroundObject] {
+                renderer.draw(menu.model.meshes[meshIndex], transform: menu.backgroundTransform)
+            }
+            for icon in menu.iconTransforms where icon.object < menu.model.objects.count {
+                for meshIndex in menu.model.objects[icon.object] {
+                    renderer.draw(menu.model.meshes[meshIndex], transform: icon.transform)
+                }
+            }
+
+            menu.deinonInstance.update(dt: clock.framesPerSecondFrac, baseTransform: menu.deinonTransform)
+            for (i, mesh) in menu.deinonRender.meshes.enumerated() where i < menu.deinonInstance.deformedPoints.count {
+                mesh.updateGeometry(points: menu.deinonInstance.deformedPoints[i],
+                                    normals: menu.deinonInstance.deformedNormals[i])
+            }
+            for mesh in menu.deinonRender.meshes { renderer.draw(mesh, transform: .identity) }
+            return
+        }
 
         // Title screen: the logo, tiled background, and animated Rex.
         if let title {
