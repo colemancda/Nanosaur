@@ -191,9 +191,11 @@ private func loadDemoTerrain(_ window: GameWindow) -> Bool {
 do {
     let window = try GameWindow()
     let env = ProcessInfo.processInfo.environment
-    // Default to the terrain fly-over; NANOSAUR_SKELETON shows a creature,
-    // NANOSAUR_MODEL a static model.
-    if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
+    // NANOSAUR_TITLE shows the title screen; default is the terrain world.
+    // NANOSAUR_SKELETON shows a creature, NANOSAUR_MODEL a static model.
+    if env["NANOSAUR_TITLE"] != nil, let title = TitleScene(dataDir: "Data") {
+        window.title = title
+    } else if env["NANOSAUR_SKELETON"] != nil, let skeleton = loadDemoSkeleton() {
         window.skeleton = skeleton
     } else if env["NANOSAUR_MODEL"] != nil {
         window.model = loadDemoModel()
