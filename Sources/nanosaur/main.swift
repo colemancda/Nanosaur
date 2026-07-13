@@ -204,12 +204,15 @@ do {
         // DoTitleScreen() -> DoMainMenu() -> the level game loop.
         window.title = TitleScene(dataDir: "Data")
         window.menu = MenuScene(dataDir: "Data")
+        window.highScores = HighScoresScene(dataDir: "Data")
         _ = loadDemoTerrain(window)
 
         // Direct-jump overrides, for quickly screenshotting/iterating on one
         // screen without having to drive the keyboard flow to reach it.
         if env["NANOSAUR_MENU"] != nil {
             window.screen = .menu
+        } else if env["NANOSAUR_HIGHSCORES"] != nil {
+            window.screen = .highScores
         } else if env["NANOSAUR_ORBIT"] != nil || env["NANOSAUR_GAME"] != nil {
             window.screen = .game
         } else if env["NANOSAUR_TITLE"] != nil {
