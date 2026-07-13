@@ -24,7 +24,7 @@ public enum GameWindowError: Error {
 /// game flow (Boot.cpp / Main.c call DoTitleScreen -> DoMainMenu -> game loop
 /// in sequence; here it's state-driven so one process can move between them).
 public enum AppScreen {
-    case title, menu, game
+    case title, menu, game, highScores
 }
 
 // SDL3's SDL_UINT64_C(...) flag macros don't import into Swift, so mirror the
@@ -74,6 +74,8 @@ public final class GameWindow {
     public var title: TitleScene?
     /// The main menu scene; when set, it's shown instead of the game.
     public var menu: MenuScene?
+    /// The high scores scene; when set, it's reachable from the menu.
+    public var highScores: HighScoresScene?
 
     /// The active screen when title/menu/game are all built together (the
     /// normal app flow, driven by handleKeyDown below).
@@ -187,15 +189,21 @@ public final class GameWindow {
                 menu?.spinToNext()
             case SDL_SCANCODE_SPACE, SDL_SCANCODE_RETURN:
                 switch menu?.currentSelection {
-                case 0: if terrain != nil { screen = .game }        // play
-                case 3: shouldQuit = true                            // quit
-                default: break                                       // settings/help/high scores: not yet implemented
+                case 0: if terrain != nil { screen = .game }              // play
+                case 3: shouldQuit = true                                  // quit
+                case 4: if highScores != nil { screen = .highScores }     // high scores
+                default: break                                             // settings/help: not yet implemented
                 }
             default: break
             }
 
         case .game:
             if scancode == SDL_SCANCODE_ESCAPE, menu != nil { screen = .menu }
+
+        case .highScores:
+            if (scancode == SDL_SCANCODE_ESCAPE || scancode == SDL_SCANCODE_RETURN), menu != nil {
+                screen = .menu
+            }
         }
     }
 
@@ -203,6 +211,29 @@ public final class GameWindow {
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
+
+        // High scores: the scrolling name/score list past a rotating spiral.
+        if screen == .highScores, let highScores {
+            if highScores.update(dt: clock.framesPerSecondFrac) {
+                // Reached the end of the scroll - return to the menu, like the
+                // original's `while (cameraLocation.x < 2200)` loop exiting.
+                screen = .menu
+            }
+            let aspect = Float(viewportWidth) / Float(viewportHeight)
+            renderer.setCamera(eye: highScores.eye, center: highScores.lookAt,
+                               up: Vector3D(x: 0, y: 1, z: 0),
+                               aspect: aspect, fovYDegrees: highScores.fovDegrees, near: 5, far: 2000)
+
+            for meshIndex in highScores.model.objects[highScores.spiralObject] {
+                renderer.draw(highScores.model.meshes[meshIndex], transform: highScores.spiralTransform)
+            }
+            for placement in highScores.placements() where placement.object < highScores.model.objects.count {
+                for meshIndex in highScores.model.objects[placement.object] {
+                    renderer.draw(highScores.model.meshes[meshIndex], transform: placement.transform)
+                }
+            }
+            return
+        }
 
         // Main menu: the carousel of icons around the animated Deinonychus.
         if screen == .menu, let menu {
