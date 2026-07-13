@@ -20,6 +20,13 @@ public enum GameWindowError: Error {
     case glContextFailed(String)
 }
 
+/// Which screen is currently active, mirroring the original's title -> menu ->
+/// game flow (Boot.cpp / Main.c call DoTitleScreen -> DoMainMenu -> game loop
+/// in sequence; here it's state-driven so one process can move between them).
+public enum AppScreen {
+    case title, menu, game
+}
+
 // SDL3's SDL_UINT64_C(...) flag macros don't import into Swift, so mirror the
 // literal values from SDL_init.h / SDL_video.h.
 private let kInitVideo: UInt32 = 0x0000_0020
@@ -67,6 +74,11 @@ public final class GameWindow {
     public var title: TitleScene?
     /// The main menu scene; when set, it's shown instead of the game.
     public var menu: MenuScene?
+
+    /// The active screen when title/menu/game are all built together (the
+    /// normal app flow, driven by handleKeyDown below).
+    public var screen: AppScreen = .title
+    private var shouldQuit = false
 
     private var flyOffset: Float = 0
 
@@ -158,13 +170,43 @@ public final class GameWindow {
         return input
     }
 
+    /// Handles a single (non-repeat) key-down event, driving the title -> menu
+    /// -> game screen flow (Title.c's UserWantsOut / MainMenu.c's UILeft/
+    /// UIRight/UIConfirm handling).
+    private func handleKeyDown(_ scancode: SDL_Scancode) {
+        switch screen {
+        case .title:
+            // Any key advances past the title, like Title.c's UserWantsOut().
+            if menu != nil { screen = .menu }
+
+        case .menu:
+            switch scancode {
+            case SDL_SCANCODE_LEFT, SDL_SCANCODE_A:
+                menu?.spinToPrevious()
+            case SDL_SCANCODE_RIGHT, SDL_SCANCODE_D:
+                menu?.spinToNext()
+            case SDL_SCANCODE_SPACE, SDL_SCANCODE_RETURN:
+                switch menu?.currentSelection {
+                case 0: if terrain != nil { screen = .game }        // play
+                case 3: shouldQuit = true                            // quit
+                default: break                                       // settings/help/high scores: not yet implemented
+                }
+            default: break
+            }
+
+        case .game:
+            if scancode == SDL_SCANCODE_ESCAPE, menu != nil { screen = .menu }
+        }
+    }
+
     /// Renders one frame's contents (clear + future geometry). Factored out so
     /// both the live loop and the screenshot path share it.
     private func renderFrame() {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT) | GLbitfield(GL_DEPTH_BUFFER_BIT))
 
         // Main menu: the carousel of icons around the animated Deinonychus.
-        if let menu {
+        if screen == .menu, let menu {
+            menu.update(dt: clock.framesPerSecondFrac)
             let aspect = Float(viewportWidth) / Float(viewportHeight)
             renderer.setCamera(eye: menu.cameraFrom, center: menu.cameraTo,
                                up: Vector3D(x: 0, y: 1, z: 0),
@@ -189,7 +231,7 @@ public final class GameWindow {
         }
 
         // Title screen: the logo, tiled background, and animated Rex.
-        if let title {
+        if screen == .title, let title {
             let aspect = Float(viewportWidth) / Float(viewportHeight)
             renderer.setCamera(eye: title.cameraFrom, center: title.cameraTo,
                                up: Vector3D(x: 0, y: 1, z: 0),
@@ -214,7 +256,7 @@ public final class GameWindow {
         }
 
         // Terrain scene: a driveable player if present, else an orbit/fly-over.
-        if let terrain {
+        if screen == .game, let terrain {
             let aspect = Float(viewportWidth) / Float(viewportHeight)
             let heightFn = terrainHeight ?? { _, _ in terrain.startHeight }
 
@@ -393,8 +435,11 @@ public final class GameWindow {
             while SDL_PollEvent(&event) {
                 if event.type == SDL_EVENT_QUIT.rawValue {
                     running = false
+                } else if event.type == SDL_EVENT_KEY_DOWN.rawValue, !event.key.repeat {
+                    handleKeyDown(event.key.scancode)
                 }
             }
+            if shouldQuit { running = false }
 
             objects.moveObjects()
             renderFrame()
